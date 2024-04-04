@@ -37,16 +37,35 @@ List<List> cardsColors = [
 ];
 
 class Task {
-  String text;
+  String name;
+  String? description;
   DateTime? date;
   int? category;
   bool done;
 
-  Task(this.text, {this.category, this.date, this.done = false});
+  Task(this.name,
+      {this.description, this.category, this.date, this.done = false});
 }
 
 class MyAppState extends ChangeNotifier {
-  var toDoList = <Task>[];
+  var toDoList = <Task>[
+    Task("Task 1",
+        category: 0, date: DateTime.now().add(const Duration(hours: 24 * 1))),
+    Task("Task 2",
+        category: 1, date: DateTime.now().add(const Duration(hours: 24 * 2))),
+    Task("Task 3",
+        category: 0,
+        date: DateTime.now().add(const Duration(hours: 24 * 3)),
+        description:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec"),
+    Task("Task 4",
+        category: 2, date: DateTime.now().add(const Duration(hours: 24 * 4))),
+    Task("Task 5",
+        category: 1,
+        date: DateTime.now().add(const Duration(hours: 24 * 5)),
+        description:
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec"),
+  ];
   var doneList = <Task>[];
   var categories = <List>[
     ["Work", 1],
@@ -55,10 +74,13 @@ class MyAppState extends ChangeNotifier {
   ];
 
   int sorting = 0;
+  int selectedIndex = 0;
 
-  void newTask(String task, [int? category, DateTime? date]) {
+  void newTask(String task,
+      [String? description, int? category, DateTime? date]) {
     toDoList.add(Task(
       task,
+      description: description,
       category: category,
       date: date,
     ));
@@ -73,7 +95,7 @@ class MyAppState extends ChangeNotifier {
   }
 
   void taskToDo(int index) {
-    toDoList[index].done = !toDoList[index].done;
+    doneList[index].done = !doneList[index].done;
     toDoList.add(doneList[index]);
     doneList.removeAt(index);
     notifyListeners();
@@ -92,25 +114,39 @@ class _MyHomePageState extends State<MyHomePage> {
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
 
+    List<Widget> pages = [
+      TaskList(
+        appState: appState,
+        list: appState.toDoList,
+      ),
+      TaskList(
+        appState: appState,
+        list: appState.doneList,
+      ),
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 130,
+        leadingWidth: 180,
         surfaceTintColor: Colors.white,
         shadowColor: Colors.black,
         elevation: 14,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: RichText(
-            text: const TextSpan(
-                style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 32,
-                    fontWeight: FontWeight.w800),
-                text: "Thrive."),
-          ),
+        title: RichText(
+          text: const TextSpan(
+              style: TextStyle(
+                  color: Colors.black,
+                  fontFamily: "Inter",
+                  fontSize: 32,
+                  fontWeight: FontWeight.w900),
+              text: "Thrive."),
         ),
         actions: [
-          const IconButton(onPressed: null, icon: Icon(Icons.search)),
+          const IconButton(
+              onPressed: null,
+              icon: Icon(
+                Icons.search,
+                color: Colors.black,
+              )),
           IconButton(
               onPressed: () {
                 switch (appState.sorting % 4) {
@@ -138,21 +174,26 @@ class _MyHomePageState extends State<MyHomePage> {
                 appState.sorting++;
                 appState.notifyListeners();
               },
-              icon: const Icon(Icons.sort_by_alpha)),
+              icon: const Icon(
+                Icons.sort_by_alpha,
+                color: Colors.black,
+              )),
           const SizedBox(
             width: 16,
           )
         ],
       ),
-      body: ToDoList(appState: appState),
-      bottomNavigationBar: Container(
-        decoration: const BoxDecoration(boxShadow: <BoxShadow>[
-          BoxShadow(
-            color: Colors.grey,
-            blurRadius: 20,
-          )
-        ]),
-        child: BottomNavigationBar(
+      body: pages.elementAt(appState.selectedIndex),
+      bottomNavigationBar: SizedBox(
+        height: 66,
+        child: Container(
+          decoration: const BoxDecoration(boxShadow: <BoxShadow>[
+            BoxShadow(
+              color: Colors.grey,
+              blurRadius: 20,
+            )
+          ]),
+          child: BottomNavigationBar(
             type: BottomNavigationBarType.fixed,
             showSelectedLabels: false,
             showUnselectedLabels: false,
@@ -160,13 +201,46 @@ class _MyHomePageState extends State<MyHomePage> {
             elevation: 16.0,
             items: const [
               BottomNavigationBarItem(
-                  label: "Test", icon: Icon(Icons.check_box_outline_blank)),
+                  label: "ToDo",
+                  icon: Icon(
+                    Icons.check_box_outline_blank,
+                    color: Colors.black,
+                  )),
               BottomNavigationBarItem(
-                  label: "Test", icon: Icon(Icons.check_box)),
-              BottomNavigationBarItem(label: "Test", icon: Icon(Icons.add)),
-              BottomNavigationBarItem(label: "Test", icon: Icon(Icons.person)),
-              BottomNavigationBarItem(label: "Test", icon: Icon(Icons.settings))
-            ]),
+                  label: "Done",
+                  icon: Icon(
+                    Icons.check_box,
+                    color: Colors.black,
+                  )),
+              BottomNavigationBarItem(
+                  label: "Add",
+                  icon: Icon(
+                    Icons.add,
+                    color: Colors.black,
+                  )),
+              BottomNavigationBarItem(
+                  label: "Account",
+                  icon: Icon(
+                    Icons.person,
+                    color: Colors.black,
+                  )),
+              BottomNavigationBarItem(
+                  label: "Setings",
+                  icon: Icon(
+                    Icons.settings,
+                    color: Colors.black,
+                  ))
+            ],
+            currentIndex: appState.selectedIndex,
+            onTap: (index) {
+              setState(() {
+                if (index < 3) {
+                  appState.selectedIndex = index;
+                }
+              });
+            },
+          ),
+        ),
       ),
       floatingActionButton: SizedBox(
         width: 82,
@@ -195,56 +269,64 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> newTaskForm(BuildContext context, MyAppState appState) async {
     await showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
-        return NewTaskFormContent(appState: appState);
+        return Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: NewTaskFormContent(appState: appState),
+        );
       },
     );
   }
 }
 
-class ToDoList extends StatefulWidget {
-  const ToDoList({
+class TaskList extends StatefulWidget {
+  final List<Task> list;
+  const TaskList({
     super.key,
     required this.appState,
+    required this.list,
   });
 
   final MyAppState appState;
 
   @override
-  State<ToDoList> createState() => _TaskListState();
+  State<TaskList> createState() => _TaskListState();
 }
 
-class _TaskListState extends State<ToDoList> {
+class _TaskListState extends State<TaskList> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 22),
+      padding: const EdgeInsets.only(top: 0),
       child: ListView(
         children: [
-          for (var index = 0; index < widget.appState.toDoList.length; index++)
+          for (var index = 0; index < widget.list.length; index++)
             Padding(
-              padding: const EdgeInsets.only(top: 12, left: 20, right: 20),
+              padding:
+                  const EdgeInsets.only(top: 8, left: 20, right: 20, bottom: 8),
               child: Container(
                 decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: widget.appState.toDoList[index].category ==
-                                  null
+                          color: widget.list[index].category == null
                               ? cardsColors[0][3]
-                              : cardsColors[widget.appState.categories[widget
-                                  .appState.toDoList[index].category!][1]][3],
+                              : cardsColors[widget.appState
+                                      .categories[widget.list[index].category!]
+                                  [1]][3],
                           spreadRadius: -1,
                           offset: const Offset(2, 2))
                     ]),
                 child: Card(
                   shape: RoundedRectangleBorder(
                       side: BorderSide(
-                          color: widget.appState.toDoList[index].category ==
-                                  null
+                          color: widget.list[index].category == null
                               ? cardsColors[0][3]
-                              : cardsColors[widget.appState.categories[widget
-                                  .appState.toDoList[index].category!][1]][3],
+                              : cardsColors[widget.appState
+                                      .categories[widget.list[index].category!]
+                                  [1]][3],
                           width: 2,
                           strokeAlign: BorderSide.strokeAlignOutside),
                       borderRadius:
@@ -258,81 +340,130 @@ class _TaskListState extends State<ToDoList> {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              widget.appState.toDoList[index].category == null
+                              widget.list[index].category == null
                                   ? cardsColors[0][1]
                                   : cardsColors[widget.appState.categories[
-                                      widget.appState.toDoList[index]
-                                          .category!][1]][1],
-                              widget.appState.toDoList[index].category == null
+                                      widget.list[index].category!][1]][1],
+                              widget.list[index].category == null
                                   ? cardsColors[0][2]
                                   : cardsColors[widget.appState.categories[
-                                      widget.appState.toDoList[index]
-                                          .category!][1]][2]
+                                      widget.list[index].category!][1]][2]
                             ])),
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 12.0, bottom: 38.0),
+                      padding: const EdgeInsets.only(bottom: 18.0),
                       child: ListTile(
-                        title: Transform.translate(
-                          offset: const Offset(-12, 0),
-                          child: Text(
-                            widget.appState.toDoList[index].text,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800),
-                          ),
-                        ),
-                        trailing: RichText(
-                          textAlign: TextAlign.end,
-                          text: TextSpan(
-                            style: DefaultTextStyle.of(context).style,
-                            children: <TextSpan>[
-                              TextSpan(
-                                text: widget.appState.toDoList[index]
-                                            .category !=
-                                        null
-                                    ? widget.appState.toDoList[index].date !=
-                                            null
-                                        ? "${widget.appState.categories[widget.appState.toDoList[index].category!][0]}  •  "
-                                        : widget.appState.categories[widget
-                                            .appState
-                                            .toDoList[index]
-                                            .category!][0]
-                                    : "",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight:
-                                      widget.appState.sorting % 4 == 1 ||
-                                              widget.appState.sorting % 4 == 2
-                                          ? FontWeight.w800
-                                          : FontWeight.w300,
-                                ),
+                        titleAlignment: ListTileTitleAlignment.top,
+                        horizontalTitleGap: 4.0,
+                        contentPadding: const EdgeInsets.only(left: 4),
+                        title: Row(
+                          children: [
+                            IconButton(
+                              onPressed: () {
+                                if (widget.appState.selectedIndex == 0) {
+                                  widget.appState.taskDone(index);
+                                } else {
+                                  widget.appState.taskToDo(index);
+                                }
+                              },
+                              iconSize: 32.0,
+                              icon: widget.list[index].done
+                                  ? const Icon(Icons.check_box,
+                                      color: Colors.white)
+                                  : const Icon(Icons.check_box_outline_blank,
+                                      color: Colors.white),
+                            ),
+                            Expanded(
+                              child: TextFormField(
+                                key: Key(widget.list[index].name),
+                                initialValue: widget.list[index].name,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontFamily: "Inter",
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800),
+                                decoration: const InputDecoration(
+                                    border: InputBorder.none),
+                                onChanged: (value) {
+                                  setState(() {
+                                    widget.list[index].name = value;
+                                  });
+                                },
                               ),
-                              TextSpan(
-                                  text: widget.appState.toDoList[index].date !=
-                                          null
-                                      ? 'in ${widget.appState.toDoList[index].date!.difference(DateTime.now()).inDays + 1} days'
+                            ),
+                            TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    widget.list[index].category = 1;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero),
+                                child: Text(
+                                    widget.list[index].category != null
+                                        ? widget.list[index].date != null
+                                            ? "${widget.appState.categories[widget.list[index].category!][0]}  •"
+                                            : widget.appState.categories[widget
+                                                .appState
+                                                .toDoList[index]
+                                                .category!][0]
+                                        : "",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontFamily: "Inter",
+                                      fontSize: 16,
+                                      fontWeight: widget.appState.sorting % 4 ==
+                                                  1 ||
+                                              widget.appState.sorting % 4 == 2
+                                          ? FontWeight.w600
+                                          : FontWeight.w300,
+                                    ))),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  widget.list[index].date = DateTime.now();
+                                });
+                              },
+                              child: Text(
+                                  widget.list[index].date != null
+                                      ? 'in ${widget.list[index].date!.difference(DateTime.now()).inDays + 1} days'
                                       : '',
                                   style: TextStyle(
                                     color: Colors.white,
+                                    fontFamily: "Inter",
+                                    fontSize: 16,
                                     fontWeight:
                                         widget.appState.sorting % 4 == 3 ||
                                                 widget.appState.sorting % 4 == 0
-                                            ? FontWeight.w800
+                                            ? FontWeight.w600
                                             : FontWeight.w300,
                                   )),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(
+                              width: 12.0,
+                            )
+                          ],
                         ),
-                        leading: IconButton(
-                          onPressed: () {
-                            widget.appState.taskDone(index);
-                          },
-                          iconSize: 28.0,
-                          icon: widget.appState.toDoList[index].done
-                              ? const Icon(Icons.check_box, color: Colors.white)
-                              : const Icon(Icons.check_box_outline_blank,
-                                  color: Colors.white),
+                        subtitle: Padding(
+                          padding:
+                              const EdgeInsets.only(left: 22.0, right: 22.0),
+                          child: TextFormField(
+                            maxLines: null,
+                            initialValue: widget.list[index].description != null
+                                ? widget.list[index].description!
+                                : "",
+                            decoration:
+                                const InputDecoration(border: InputBorder.none),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontFamily: "Inter",
+                                fontSize: 14,
+                                fontWeight: FontWeight.w200),
+                            onChanged: (value) {
+                              setState(() {
+                                widget.list[index].description = value;
+                              });
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -357,6 +488,7 @@ class NewTaskFormContent extends StatefulWidget {
 
 class NewTaskFormContentState extends State<NewTaskFormContent> {
   String taskText = "";
+  String? taskDescription;
   DateTime? selectedDate;
   int? selectedCategory;
   int selectedColor = 0;
@@ -380,10 +512,12 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       fillColor: Colors.orange,
-                      labelText: "Enter your new task"),
+                      labelText: "Task",
+                      labelStyle: TextStyle(fontWeight: FontWeight.bold)),
                   onSubmitted: (String text) {
                     appState.newTask(
                       taskText,
+                      taskDescription,
                       selectedCategory,
                       selectedDate,
                     );
@@ -391,6 +525,26 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   },
                   onChanged: (String text) {
                     taskText = text;
+                  },
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 80,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                  left: 20.0, right: 20.0, top: 0.0, bottom: 10.0),
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextField(
+                  decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      fillColor: Colors.orange,
+                      labelText: "Description (optionnal)",
+                      labelStyle: TextStyle(fontWeight: FontWeight.w300)),
+                  onChanged: (String description) {
+                    taskDescription = description;
                   },
                 ),
               ),
@@ -415,128 +569,127 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                       ),
                       Offset.zero & overlay.size,
                     );
-                    selectedCategory = await showMenu<int>(
-                        context: context,
-                        position: position,
-                        items: [
-                          for (var index = 0;
-                              index < appState.categories.length;
-                              index++)
-                            PopupMenuItem(
-                              value: index,
-                              child: Text(appState.categories[index][0],
-                                  style: TextStyle(
-                                      color: cardsColors[
-                                          appState.categories[index][1]][2])),
+                    selectedCategory = await showMenu<
+                        int>(context: context, position: position, items: [
+                      for (var index = 0;
+                          index < appState.categories.length;
+                          index++)
+                        PopupMenuItem(
+                          value: index,
+                          child: Text(appState.categories[index][0],
+                              style: TextStyle(
+                                  color:
+                                      cardsColors[appState.categories[index][1]]
+                                          [2],
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                      PopupMenuItem(
+                        value: null,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, size: 20),
+                            Text(
+                              "New",
+                              style: TextStyle(fontWeight: FontWeight.w300),
                             ),
-                          PopupMenuItem(
-                              value: null,
-                              child: Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () {
-                                    showDialog(
-                                        context: context,
-                                        builder: (BuildContext context) {
-                                          return AlertDialog(
-                                            title: const Text(
-                                                "Create a new category"),
-                                            content: Row(
-                                              children: [
-                                                Ink(
-                                                  decoration: ShapeDecoration(
-                                                      shape:
-                                                          const CircleBorder(),
-                                                      color: cardsColors[
-                                                          selectedColor][1]),
-                                                  child: IconButton(
-                                                      color: Colors.white,
-                                                      hoverColor: Colors.black,
-                                                      icon: const Icon(Icons
-                                                          .color_lens_rounded),
-                                                      onPressed: () {
-                                                        showDialog(
-                                                            context: context,
-                                                            builder:
-                                                                (BuildContext
-                                                                    context) {
-                                                              return SimpleDialog(
-                                                                title: const Text(
-                                                                    "Choose a color"),
-                                                                children: [
-                                                                  SizedBox(
-                                                                    width: 200,
-                                                                    height: 300,
-                                                                    child: GridView
-                                                                        .count(
-                                                                      crossAxisCount:
-                                                                          3,
-                                                                      padding: const EdgeInsets
-                                                                          .all(
-                                                                          24),
-                                                                      mainAxisSpacing:
-                                                                          12,
-                                                                      crossAxisSpacing:
-                                                                          12,
-                                                                      children: [
-                                                                        for (var index =
-                                                                                0;
-                                                                            index <
-                                                                                cardsColors.length;
-                                                                            index++)
-                                                                          FilledButton(
-                                                                            onPressed:
-                                                                                () {
-                                                                              selectedColor = index;
-                                                                              Navigator.pop(context);
-                                                                              setState(() {
-                                                                                selectedColor = index;
-                                                                              });
-                                                                            },
-                                                                            style:
-                                                                                ButtonStyle(backgroundColor: MaterialStatePropertyAll<Color>(cardsColors[index][1])),
-                                                                            child:
-                                                                                const SizedBox(),
-                                                                          )
-                                                                      ],
-                                                                    ),
-                                                                  )
-                                                                ],
-                                                              );
-                                                            });
-                                                      }),
-                                                ),
-                                                const SizedBox(
-                                                  width: 16,
-                                                ),
-                                                Flexible(
-                                                  child: TextFormField(
-                                                    autofocus: true,
-                                                    onFieldSubmitted:
-                                                        (String category) {
-                                                      appState.categories.add([
-                                                        category,
-                                                        selectedColor
-                                                      ]);
-                                                      Navigator.of(context)
-                                                          .pop();
-                                                      Navigator.of(context).pop(
-                                                          appState.categories
-                                                                  .length -
-                                                              1);
-                                                    },
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          );
-                                        });
-                                  },
-                                  label: const Text("New         "),
-                                  icon: const Icon(Icons.add),
-                                ),
-                              )),
-                        ]);
+                          ],
+                        ),
+                        onTap: () {
+                          showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return AlertDialog(
+                                  title: const Text("Create a new category"),
+                                  content: Row(
+                                    children: [
+                                      Ink(
+                                        decoration: ShapeDecoration(
+                                            shape: const CircleBorder(),
+                                            color: cardsColors[selectedColor]
+                                                [1]),
+                                        child: IconButton(
+                                            color: Colors.white,
+                                            hoverColor: Colors.black,
+                                            icon: const Icon(
+                                                Icons.color_lens_rounded),
+                                            onPressed: () {
+                                              showDialog(
+                                                  context: context,
+                                                  builder:
+                                                      (BuildContext context) {
+                                                    return SimpleDialog(
+                                                      title: const Text(
+                                                          "Choose a color"),
+                                                      children: [
+                                                        SizedBox(
+                                                          width: 200,
+                                                          height: 300,
+                                                          child: GridView.count(
+                                                            crossAxisCount: 3,
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .all(24),
+                                                            mainAxisSpacing: 12,
+                                                            crossAxisSpacing:
+                                                                12,
+                                                            children: [
+                                                              for (var index =
+                                                                      0;
+                                                                  index <
+                                                                      cardsColors
+                                                                          .length;
+                                                                  index++)
+                                                                FilledButton(
+                                                                  onPressed:
+                                                                      () {
+                                                                    selectedColor =
+                                                                        index;
+                                                                    Navigator.pop(
+                                                                        context);
+                                                                    setState(
+                                                                        () {
+                                                                      selectedColor =
+                                                                          index;
+                                                                    });
+                                                                  },
+                                                                  style: ButtonStyle(
+                                                                      backgroundColor: MaterialStatePropertyAll<
+                                                                          Color>(cardsColors[
+                                                                              index]
+                                                                          [1])),
+                                                                  child:
+                                                                      const SizedBox(),
+                                                                )
+                                                            ],
+                                                          ),
+                                                        )
+                                                      ],
+                                                    );
+                                                  });
+                                            }),
+                                      ),
+                                      const SizedBox(
+                                        width: 16,
+                                      ),
+                                      Flexible(
+                                        child: TextFormField(
+                                          autofocus: true,
+                                          onFieldSubmitted: (String category) {
+                                            appState.categories
+                                                .add([category, selectedColor]);
+                                            Navigator.of(context).pop();
+                                            Navigator.of(context).pop(
+                                                appState.categories.length - 1);
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              });
+                        },
+                      ),
+                    ]);
                     setState(() {
                       selectedCategory = selectedCategory;
                     });
@@ -587,7 +740,8 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
               ),
               ElevatedButton.icon(
                   onPressed: () {
-                    appState.newTask(taskText, selectedCategory, selectedDate);
+                    appState.newTask(taskText, taskDescription,
+                        selectedCategory, selectedDate);
                     Navigator.pop(context);
                   },
                   label: constraints.maxWidth >= 365
