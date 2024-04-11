@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:thrive/category.dart';
+import 'package:thrive/task.dart';
+import 'package:thrive/database.dart';
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Database.initialize();
+
+  runApp(ChangeNotifierProvider(
+    create: (context) => Database(),
+    child: const MyApp(),
+  ));
 }
 
 class MyApp extends StatelessWidget {
@@ -36,70 +45,9 @@ List<List> cardsColors = [
   ["yellow", Colors.yellow, Colors.yellow[800], Colors.yellow[900]],
 ];
 
-class Task {
-  String name;
-  String? description;
-  DateTime? date;
-  int? category;
-  bool done;
-
-  Task(this.name,
-      {this.description, this.category, this.date, this.done = false});
-}
-
 class MyAppState extends ChangeNotifier {
-  var toDoList = <Task>[
-    Task("Task 1",
-        category: 0, date: DateTime.now().add(const Duration(hours: 24 * 1))),
-    Task("Task 2",
-        category: 1, date: DateTime.now().add(const Duration(hours: 24 * 2))),
-    Task("Task 3",
-        category: 0,
-        date: DateTime.now().add(const Duration(hours: 24 * 3)),
-        description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec"),
-    Task("Task 4",
-        category: 2, date: DateTime.now().add(const Duration(hours: 24 * 4))),
-    Task("Task 5",
-        category: 1,
-        date: DateTime.now().add(const Duration(hours: 24 * 5)),
-        description:
-            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus. Suspendisse lectus tortor, dignissim sit amet, adipiscing nec"),
-  ];
-  var doneList = <Task>[];
-  var categories = <List>[
-    ["Work", 1],
-    ["School", 2],
-    ["Social", 3]
-  ];
-
   int sorting = 0;
   int selectedIndex = 0;
-
-  void newTask(String task,
-      [String? description, int? category, DateTime? date]) {
-    toDoList.add(Task(
-      task,
-      description: description,
-      category: category,
-      date: date,
-    ));
-    notifyListeners();
-  }
-
-  void taskDone(int index) {
-    toDoList[index].done = !toDoList[index].done;
-    doneList.add(toDoList[index]);
-    toDoList.removeAt(index);
-    notifyListeners();
-  }
-
-  void taskToDo(int index) {
-    doneList[index].done = !doneList[index].done;
-    toDoList.add(doneList[index]);
-    doneList.removeAt(index);
-    notifyListeners();
-  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -111,18 +59,20 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   @override
+  void initState() {
+    super.initState();
+    context.read<Database>().fetchTasks();
+    context.read<Database>().fetchCategories();
+  }
+
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
 
     List<Widget> pages = [
-      TaskList(
-        appState: appState,
-        list: appState.toDoList,
-      ),
-      TaskList(
-        appState: appState,
-        list: appState.doneList,
-      ),
+      TaskList(appState: appState),
+      TaskList(appState: appState),
+      const Text("WIP"),
+      const Text("WIP")
     ];
 
     return Scaffold(
@@ -149,27 +99,26 @@ class _MyHomePageState extends State<MyHomePage> {
               )),
           IconButton(
               onPressed: () {
+                final tasksDatabase =
+                    Provider.of<Database>(context, listen: false);
+                List<Task> list = tasksDatabase.tasksList;
                 switch (appState.sorting % 4) {
                   case 0:
-                    appState.toDoList.sort((a, b) =>
-                        a.category != null && b.category != null
-                            ? b.category!.compareTo(a.category!)
-                            : 1);
+                    list.sort((a, b) => a.category != null && b.category != null
+                        ? b.category!.compareTo(a.category!)
+                        : 1);
                   case 1:
-                    appState.toDoList.sort((a, b) =>
-                        a.category != null && b.category != null
-                            ? a.category!.compareTo(b.category!)
-                            : 1);
+                    list.sort((a, b) => a.category != null && b.category != null
+                        ? a.category!.compareTo(b.category!)
+                        : 1);
                   case 2:
-                    appState.toDoList.sort((a, b) =>
-                        a.date != null && b.date != null
-                            ? a.date!.compareTo(b.date!)
-                            : 1);
+                    list.sort((a, b) => a.date != null && b.date != null
+                        ? a.date!.compareTo(b.date!)
+                        : 1);
                   case 3:
-                    appState.toDoList.sort((a, b) =>
-                        a.date != null && b.date != null
-                            ? b.date!.compareTo(a.date!)
-                            : 1);
+                    list.sort((a, b) => a.date != null && b.date != null
+                        ? b.date!.compareTo(a.date!)
+                        : 1);
                 }
                 appState.sorting++;
                 appState.notifyListeners();
@@ -193,52 +142,63 @@ class _MyHomePageState extends State<MyHomePage> {
               blurRadius: 20,
             )
           ]),
-          child: BottomNavigationBar(
-            type: BottomNavigationBarType.fixed,
-            showSelectedLabels: false,
-            showUnselectedLabels: false,
-            iconSize: 32.0,
-            elevation: 16.0,
-            items: const [
-              BottomNavigationBarItem(
-                  label: "ToDo",
-                  icon: Icon(
+          child: BottomAppBar(
+            color: Colors.white,
+            elevation: 0.0,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  icon: const Icon(
                     Icons.check_box_outline_blank,
                     color: Colors.black,
-                  )),
-              BottomNavigationBarItem(
-                  label: "Done",
-                  icon: Icon(
+                  ),
+                  iconSize: 32,
+                  onPressed: () {
+                    setState(() {
+                      appState.selectedIndex = 0;
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(
                     Icons.check_box,
                     color: Colors.black,
-                  )),
-              BottomNavigationBarItem(
-                  label: "Add",
-                  icon: Icon(
-                    Icons.add,
-                    color: Colors.black,
-                  )),
-              BottomNavigationBarItem(
-                  label: "Account",
-                  icon: Icon(
+                  ),
+                  iconSize: 32,
+                  onPressed: () {
+                    setState(() {
+                      appState.selectedIndex = 1;
+                    });
+                  },
+                ),
+                const SizedBox(width: 82),
+                IconButton(
+                  icon: const Icon(
                     Icons.person,
                     color: Colors.black,
-                  )),
-              BottomNavigationBarItem(
-                  label: "Setings",
-                  icon: Icon(
+                  ),
+                  iconSize: 32,
+                  onPressed: () {
+                    setState(() {
+                      appState.selectedIndex = 2;
+                    });
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(
                     Icons.settings,
                     color: Colors.black,
-                  ))
-            ],
-            currentIndex: appState.selectedIndex,
-            onTap: (index) {
-              setState(() {
-                if (index < 3) {
-                  appState.selectedIndex = index;
-                }
-              });
-            },
+                  ),
+                  iconSize: 32,
+                  onPressed: () {
+                    setState(() {
+                      appState.selectedIndex = 3;
+                    });
+                  },
+                )
+              ],
+            ),
           ),
         ),
       ),
@@ -281,16 +241,126 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 }
 
+Future<int?> categoriesMenu(BuildContext context, RelativeRect position,
+    MyAppState appState, int selectedColor) {
+  final db = Provider.of<Database>(context, listen: false);
+  List<Category> categories = db.categories;
+
+  return showMenu<int>(context: context, position: position, items: [
+    for (var index = 0; index < categories.length; index++)
+      PopupMenuItem(
+        value: categories[index].id,
+        child: Text(categories[index].name,
+            style: TextStyle(
+                color: cardsColors[categories[index].color][2],
+                fontWeight: FontWeight.bold)),
+      ),
+    PopupMenuItem(
+      value: null,
+      padding: EdgeInsets.zero,
+      child: SizedBox(
+        width: 112,
+        height: 48,
+        child: InkWell(
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 8,
+              ),
+              Icon(Icons.add, size: 20),
+              Text(
+                "New",
+                style: TextStyle(fontWeight: FontWeight.w300),
+              ),
+            ],
+          ),
+          onTap: () {
+            showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text("Create a new category"),
+                    content: Row(
+                      children: [
+                        Ink(
+                          decoration: ShapeDecoration(
+                              shape: const CircleBorder(),
+                              color: cardsColors[selectedColor][1]),
+                          child: IconButton(
+                              color: Colors.white,
+                              hoverColor: Colors.black,
+                              icon: const Icon(Icons.color_lens_rounded),
+                              onPressed: () {
+                                showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return SimpleDialog(
+                                        title: const Text("Choose a color"),
+                                        children: [
+                                          SizedBox(
+                                            width: 200,
+                                            height: 300,
+                                            child: GridView.count(
+                                              crossAxisCount: 3,
+                                              padding: const EdgeInsets.all(24),
+                                              mainAxisSpacing: 12,
+                                              crossAxisSpacing: 12,
+                                              children: [
+                                                for (var index = 0;
+                                                    index < cardsColors.length;
+                                                    index++)
+                                                  FilledButton(
+                                                    onPressed: () {
+                                                      selectedColor = index;
+                                                      Navigator.pop(context);
+                                                    },
+                                                    style: ButtonStyle(
+                                                        backgroundColor:
+                                                            MaterialStatePropertyAll<
+                                                                    Color>(
+                                                                cardsColors[
+                                                                    index][1])),
+                                                    child: const SizedBox(),
+                                                  )
+                                              ],
+                                            ),
+                                          )
+                                        ],
+                                      );
+                                    });
+                              }),
+                        ),
+                        const SizedBox(
+                          width: 16,
+                        ),
+                        Flexible(
+                          child: TextFormField(
+                            autofocus: true,
+                            onFieldSubmitted: (String category) {
+                              context
+                                  .read<Database>()
+                                  .addCategory(category, selectedColor);
+                              Navigator.pop(context);
+                              Navigator.of(context).pop(
+                                  categories[categories.length - 1].id + 1);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                });
+          },
+        ),
+      ),
+    ),
+  ]);
+}
+
 class TaskList extends StatefulWidget {
-  final List<Task> list;
-  const TaskList({
-    super.key,
-    required this.appState,
-    required this.list,
-  });
+  const TaskList({super.key, required this.appState});
 
   final MyAppState appState;
-
   @override
   State<TaskList> createState() => _TaskListState();
 }
@@ -298,11 +368,24 @@ class TaskList extends StatefulWidget {
 class _TaskListState extends State<TaskList> {
   @override
   Widget build(BuildContext context) {
+    final tasksDatabase = context.watch<Database>();
+    List<Task> list = tasksDatabase.tasksList;
+    List<Category> categories = tasksDatabase.categories;
+
+    int getCategoryIndex(Task task) {
+      for (var index = 0; index < categories.length; index++) {
+        if (task.category == categories[index].id) {
+          return index;
+        }
+      }
+      return 0;
+    }
+
     return Padding(
       padding: const EdgeInsets.only(top: 0),
       child: ListView(
         children: [
-          for (var index = 0; index < widget.list.length; index++)
+          for (var index = 0; index < list.length; index++)
             Padding(
               padding:
                   const EdgeInsets.only(top: 8, left: 20, right: 20, bottom: 8),
@@ -311,22 +394,22 @@ class _TaskListState extends State<TaskList> {
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                          color: widget.list[index].category == null
+                          color: list[index].category == null
                               ? cardsColors[0][3]
-                              : cardsColors[widget.appState
-                                      .categories[widget.list[index].category!]
-                                  [1]][3],
+                              : cardsColors[
+                                  categories[getCategoryIndex(list[index])]
+                                      .color][3],
                           spreadRadius: -1,
                           offset: const Offset(2, 2))
                     ]),
                 child: Card(
                   shape: RoundedRectangleBorder(
                       side: BorderSide(
-                          color: widget.list[index].category == null
+                          color: list[index].category == null
                               ? cardsColors[0][3]
-                              : cardsColors[widget.appState
-                                      .categories[widget.list[index].category!]
-                                  [1]][3],
+                              : cardsColors[
+                                  categories[getCategoryIndex(list[index])]
+                                      .color][3],
                           width: 2,
                           strokeAlign: BorderSide.strokeAlignOutside),
                       borderRadius:
@@ -340,14 +423,16 @@ class _TaskListState extends State<TaskList> {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              widget.list[index].category == null
+                              list[index].category == null
                                   ? cardsColors[0][1]
-                                  : cardsColors[widget.appState.categories[
-                                      widget.list[index].category!][1]][1],
-                              widget.list[index].category == null
+                                  : cardsColors[
+                                      categories[getCategoryIndex(list[index])]
+                                          .color][1],
+                              list[index].category == null
                                   ? cardsColors[0][2]
-                                  : cardsColors[widget.appState.categories[
-                                      widget.list[index].category!][1]][2]
+                                  : cardsColors[
+                                      categories[getCategoryIndex(list[index])]
+                                          .color][2]
                             ])),
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 18.0),
@@ -359,14 +444,12 @@ class _TaskListState extends State<TaskList> {
                           children: [
                             IconButton(
                               onPressed: () {
-                                if (widget.appState.selectedIndex == 0) {
-                                  widget.appState.taskDone(index);
-                                } else {
-                                  widget.appState.taskToDo(index);
-                                }
+                                context
+                                    .read<Database>()
+                                    .updateState(list[index].id);
                               },
                               iconSize: 32.0,
-                              icon: widget.list[index].done
+                              icon: list[index].done
                                   ? const Icon(Icons.check_box,
                                       color: Colors.white)
                                   : const Icon(Icons.check_box_outline_blank,
@@ -374,8 +457,8 @@ class _TaskListState extends State<TaskList> {
                             ),
                             Expanded(
                               child: TextFormField(
-                                key: Key(widget.list[index].name),
-                                initialValue: widget.list[index].name,
+                                key: Key(list[index].id.toString()),
+                                initialValue: list[index].name,
                                 style: const TextStyle(
                                     color: Colors.white,
                                     fontFamily: "Inter",
@@ -384,48 +467,73 @@ class _TaskListState extends State<TaskList> {
                                 decoration: const InputDecoration(
                                     border: InputBorder.none),
                                 onChanged: (value) {
-                                  setState(() {
-                                    widget.list[index].name = value;
-                                  });
+                                  context
+                                      .read<Database>()
+                                      .updateName(list[index].id, value);
                                 },
                               ),
                             ),
+                            GestureDetector(
+                              child: TextButton(
+                                  onPressed: () {
+                                    null;
+                                  },
+                                  style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.only(left: 6)),
+                                  child: Text(
+                                      list[index].category != null
+                                          ? list[index].date != null
+                                              ? "${categories[getCategoryIndex(list[index])].name}  •"
+                                              : categories[getCategoryIndex(
+                                                      list[index])]
+                                                  .name
+                                          : "",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: "Inter",
+                                        fontSize: 16,
+                                        fontWeight: widget.appState.sorting %
+                                                        4 ==
+                                                    1 ||
+                                                widget.appState.sorting % 4 == 2
+                                            ? FontWeight.w600
+                                            : FontWeight.w300,
+                                      ))),
+                              onTapDown: (details) async {
+                                final newCategory = await categoriesMenu(
+                                    context,
+                                    RelativeRect.fromRect(
+                                        details.globalPosition &
+                                            const Size(40, 40),
+                                        Offset.zero &
+                                            Overlay.of(context)
+                                                .context
+                                                .findRenderObject()!
+                                                .semanticBounds
+                                                .size),
+                                    widget.appState,
+                                    0);
+                                context.read<Database>().updateCategory(
+                                    list[index].id, newCategory);
+                              },
+                            ),
                             TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    widget.list[index].category = 1;
-                                  });
-                                },
-                                style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero),
-                                child: Text(
-                                    widget.list[index].category != null
-                                        ? widget.list[index].date != null
-                                            ? "${widget.appState.categories[widget.list[index].category!][0]}  •"
-                                            : widget.appState.categories[widget
-                                                .appState
-                                                .toDoList[index]
-                                                .category!][0]
-                                        : "",
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontFamily: "Inter",
-                                      fontSize: 16,
-                                      fontWeight: widget.appState.sorting % 4 ==
-                                                  1 ||
-                                              widget.appState.sorting % 4 == 2
-                                          ? FontWeight.w600
-                                          : FontWeight.w300,
-                                    ))),
-                            TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  widget.list[index].date = DateTime.now();
-                                });
+                              onPressed: () async {
+                                final date = await showDatePicker(
+                                  context: context,
+                                  initialDate: list[index].date,
+                                  firstDate: DateTime.now(),
+                                  lastDate: DateTime(2100),
+                                );
+                                if (date != null) {
+                                  context
+                                      .read<Database>()
+                                      .updateDate(list[index].id, date);
+                                }
                               },
                               child: Text(
-                                  widget.list[index].date != null
-                                      ? 'in ${widget.list[index].date!.difference(DateTime.now()).inDays + 1} days'
+                                  list[index].date != null
+                                      ? 'in ${list[index].date!.difference(DateTime.now()).inDays + 1} days'
                                       : '',
                                   style: TextStyle(
                                     color: Colors.white,
@@ -448,8 +556,8 @@ class _TaskListState extends State<TaskList> {
                               const EdgeInsets.only(left: 22.0, right: 22.0),
                           child: TextFormField(
                             maxLines: null,
-                            initialValue: widget.list[index].description != null
-                                ? widget.list[index].description!
+                            initialValue: list[index].description != null
+                                ? list[index].description!
                                 : "",
                             decoration:
                                 const InputDecoration(border: InputBorder.none),
@@ -459,9 +567,9 @@ class _TaskListState extends State<TaskList> {
                                 fontSize: 14,
                                 fontWeight: FontWeight.w200),
                             onChanged: (value) {
-                              setState(() {
-                                widget.list[index].description = value;
-                              });
+                              context
+                                  .read<Database>()
+                                  .updateDescription(list[index].id, value);
                             },
                           ),
                         ),
@@ -490,12 +598,24 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
   String taskText = "";
   String? taskDescription;
   DateTime? selectedDate;
-  int? selectedCategory;
+  int? selectedCategoryId;
   int selectedColor = 0;
 
   @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
+    final db = context.watch<Database>();
+    List<Category> categories = db.categories;
+
+    int getCategoryIndex(int id) {
+      for (var index = 0; index < categories.length; index++) {
+        if (categories[index].id == id) {
+          return index;
+        }
+      }
+      return 0;
+    }
+
     return LayoutBuilder(builder: (context, constraints) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -511,16 +631,11 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   autofocus: true,
                   decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      fillColor: Colors.orange,
                       labelText: "Task",
                       labelStyle: TextStyle(fontWeight: FontWeight.bold)),
                   onSubmitted: (String text) {
-                    appState.newTask(
-                      taskText,
-                      taskDescription,
-                      selectedCategory,
-                      selectedDate,
-                    );
+                    context.read<Database>().addTask(taskText, taskDescription,
+                        selectedCategoryId, selectedDate);
                     Navigator.pop(context);
                   },
                   onChanged: (String text) {
@@ -540,7 +655,6 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                 child: TextField(
                   decoration: const InputDecoration(
                       border: OutlineInputBorder(),
-                      fillColor: Colors.orange,
                       labelText: "Description (optionnal)",
                       labelStyle: TextStyle(fontWeight: FontWeight.w300)),
                   onChanged: (String description) {
@@ -569,143 +683,25 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                       ),
                       Offset.zero & overlay.size,
                     );
-                    selectedCategory = await showMenu<
-                        int>(context: context, position: position, items: [
-                      for (var index = 0;
-                          index < appState.categories.length;
-                          index++)
-                        PopupMenuItem(
-                          value: index,
-                          child: Text(appState.categories[index][0],
-                              style: TextStyle(
-                                  color:
-                                      cardsColors[appState.categories[index][1]]
-                                          [2],
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                      PopupMenuItem(
-                        value: null,
-                        child: const Row(
-                          children: [
-                            Icon(Icons.add, size: 20),
-                            Text(
-                              "New",
-                              style: TextStyle(fontWeight: FontWeight.w300),
-                            ),
-                          ],
-                        ),
-                        onTap: () {
-                          showDialog(
-                              context: context,
-                              builder: (BuildContext context) {
-                                return AlertDialog(
-                                  title: const Text("Create a new category"),
-                                  content: Row(
-                                    children: [
-                                      Ink(
-                                        decoration: ShapeDecoration(
-                                            shape: const CircleBorder(),
-                                            color: cardsColors[selectedColor]
-                                                [1]),
-                                        child: IconButton(
-                                            color: Colors.white,
-                                            hoverColor: Colors.black,
-                                            icon: const Icon(
-                                                Icons.color_lens_rounded),
-                                            onPressed: () {
-                                              showDialog(
-                                                  context: context,
-                                                  builder:
-                                                      (BuildContext context) {
-                                                    return SimpleDialog(
-                                                      title: const Text(
-                                                          "Choose a color"),
-                                                      children: [
-                                                        SizedBox(
-                                                          width: 200,
-                                                          height: 300,
-                                                          child: GridView.count(
-                                                            crossAxisCount: 3,
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .all(24),
-                                                            mainAxisSpacing: 12,
-                                                            crossAxisSpacing:
-                                                                12,
-                                                            children: [
-                                                              for (var index =
-                                                                      0;
-                                                                  index <
-                                                                      cardsColors
-                                                                          .length;
-                                                                  index++)
-                                                                FilledButton(
-                                                                  onPressed:
-                                                                      () {
-                                                                    selectedColor =
-                                                                        index;
-                                                                    Navigator.pop(
-                                                                        context);
-                                                                    setState(
-                                                                        () {
-                                                                      selectedColor =
-                                                                          index;
-                                                                    });
-                                                                  },
-                                                                  style: ButtonStyle(
-                                                                      backgroundColor: MaterialStatePropertyAll<
-                                                                          Color>(cardsColors[
-                                                                              index]
-                                                                          [1])),
-                                                                  child:
-                                                                      const SizedBox(),
-                                                                )
-                                                            ],
-                                                          ),
-                                                        )
-                                                      ],
-                                                    );
-                                                  });
-                                            }),
-                                      ),
-                                      const SizedBox(
-                                        width: 16,
-                                      ),
-                                      Flexible(
-                                        child: TextFormField(
-                                          autofocus: true,
-                                          onFieldSubmitted: (String category) {
-                                            appState.categories
-                                                .add([category, selectedColor]);
-                                            Navigator.of(context).pop();
-                                            Navigator.of(context).pop(
-                                                appState.categories.length - 1);
-                                          },
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              });
-                        },
-                      ),
-                    ]);
-                    setState(() {
-                      selectedCategory = selectedCategory;
-                    });
+                    selectedCategoryId = await categoriesMenu(
+                        context, position, appState, selectedColor);
+                    context.read<Database>().fetchCategories();
                   },
                   label: constraints.maxWidth >= 365
-                      ? selectedCategory == null
+                      ? selectedCategoryId == null
                           ? const Text("Category")
                           : Text(
-                              widget.appState.categories[selectedCategory!][0])
+                              categories[getCategoryIndex(selectedCategoryId!)]
+                                  .name)
                       : Container(),
                   icon: const Icon(Icons.label),
                   style: ButtonStyle(
                       foregroundColor: MaterialStatePropertyAll<Color>(
-                          selectedCategory == null
+                          selectedCategoryId == null
                               ? cardsColors[0][2]
-                              : cardsColors[1 + selectedCategory!][2]))),
+                              : cardsColors[categories[
+                                      getCategoryIndex(selectedCategoryId!)]
+                                  .color][2]))),
               const SizedBox(
                 width: 10,
               ),
@@ -731,17 +727,19 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                 icon: const Icon(Icons.calendar_month),
                 style: ButtonStyle(
                     foregroundColor: MaterialStatePropertyAll<Color>(
-                        selectedCategory == null
+                        selectedCategoryId == null
                             ? cardsColors[0][2]
-                            : cardsColors[1 + selectedCategory!][2])),
+                            : cardsColors[categories[
+                                    getCategoryIndex(selectedCategoryId!)]
+                                .color][2])),
               ),
               const SizedBox(
                 width: 10,
               ),
               ElevatedButton.icon(
                   onPressed: () {
-                    appState.newTask(taskText, taskDescription,
-                        selectedCategory, selectedDate);
+                    context.read<Database>().addTask(taskText, taskDescription,
+                        selectedCategoryId, selectedDate);
                     Navigator.pop(context);
                   },
                   label: constraints.maxWidth >= 365
@@ -750,9 +748,11 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   icon: const Icon(Icons.check),
                   style: ButtonStyle(
                       foregroundColor: MaterialStatePropertyAll<Color>(
-                          selectedCategory == null
+                          selectedCategoryId == null
                               ? cardsColors[0][2]
-                              : cardsColors[1 + selectedCategory!][2]))),
+                              : cardsColors[categories[
+                                      getCategoryIndex(selectedCategoryId!)]
+                                  .color][2]))),
             ],
           ),
           const SizedBox(
