@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:thrive/category.dart';
 import 'package:thrive/task.dart';
 import 'package:thrive/database.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
     return ChangeNotifierProvider(
         create: (context) => MyAppState(),
         child: MaterialApp(
+          debugShowCheckedModeBanner: false,
           title: 'Flutter Demo',
           theme: ThemeData(
               useMaterial3: true,
@@ -46,8 +48,12 @@ List<List> cardsColors = [
 ];
 
 class MyAppState extends ChangeNotifier {
-  int sorting = 0;
   int selectedIndex = 0;
+
+  void _updateIndex(int index) {
+    selectedIndex = index;
+    notifyListeners();
+  }
 }
 
 class MyHomePage extends StatefulWidget {
@@ -61,16 +67,18 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
-    context.read<Database>().fetchTasks();
+    context.read<Database>().fetchToDoList();
+    context.read<Database>().fetchDoneList();
     context.read<Database>().fetchCategories();
   }
 
+  @override
   Widget build(BuildContext context) {
     var appState = context.watch<MyAppState>();
 
     List<Widget> pages = [
-      TaskList(appState: appState),
-      TaskList(appState: appState),
+      TaskList(appState: appState, done: false),
+      TaskList(appState: appState, done: true),
       const Text("WIP"),
       const Text("WIP")
     ];
@@ -99,29 +107,8 @@ class _MyHomePageState extends State<MyHomePage> {
               )),
           IconButton(
               onPressed: () {
-                final tasksDatabase =
-                    Provider.of<Database>(context, listen: false);
-                List<Task> list = tasksDatabase.tasksList;
-                switch (appState.sorting % 4) {
-                  case 0:
-                    list.sort((a, b) => a.category != null && b.category != null
-                        ? b.category!.compareTo(a.category!)
-                        : 1);
-                  case 1:
-                    list.sort((a, b) => a.category != null && b.category != null
-                        ? a.category!.compareTo(b.category!)
-                        : 1);
-                  case 2:
-                    list.sort((a, b) => a.date != null && b.date != null
-                        ? a.date!.compareTo(b.date!)
-                        : 1);
-                  case 3:
-                    list.sort((a, b) => a.date != null && b.date != null
-                        ? b.date!.compareTo(a.date!)
-                        : 1);
-                }
-                appState.sorting++;
-                appState.notifyListeners();
+                context.read<Database>().fetchToDoList();
+                context.read<Database>().incrementSort();
               },
               icon: const Icon(
                 Icons.sort_by_alpha,
@@ -227,6 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> newTaskForm(BuildContext context, MyAppState appState) async {
+    context.read<Database>().deleteUnusedCategories();
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -341,8 +329,12 @@ Future<int?> categoriesMenu(BuildContext context, RelativeRect position,
                                   .read<Database>()
                                   .addCategory(category, selectedColor);
                               Navigator.pop(context);
-                              Navigator.of(context).pop(
-                                  categories[categories.length - 1].id + 1);
+                              if (categories.isNotEmpty) {
+                                Navigator.of(context).pop(
+                                    categories[categories.length - 1].id + 1);
+                              } else {
+                                Navigator.of(context).pop(1);
+                              }
                             },
                           ),
                         ),
@@ -358,7 +350,8 @@ Future<int?> categoriesMenu(BuildContext context, RelativeRect position,
 }
 
 class TaskList extends StatefulWidget {
-  const TaskList({super.key, required this.appState});
+  final bool done;
+  const TaskList({super.key, required this.appState, required this.done});
 
   final MyAppState appState;
   @override
@@ -368,9 +361,15 @@ class TaskList extends StatefulWidget {
 class _TaskListState extends State<TaskList> {
   @override
   Widget build(BuildContext context) {
-    final tasksDatabase = context.watch<Database>();
-    List<Task> list = tasksDatabase.tasksList;
-    List<Category> categories = tasksDatabase.categories;
+    final db = context.watch<Database>();
+    int sort = db.sorting;
+    late List<Task> list = [];
+    if (widget.done == false) {
+      list = db.toDoList;
+    } else {
+      list = db.doneList;
+    }
+    List<Category> categories = db.categories;
 
     int getCategoryIndex(Task task) {
       for (var index = 0; index < categories.length; index++) {
@@ -492,12 +491,10 @@ class _TaskListState extends State<TaskList> {
                                         color: Colors.white,
                                         fontFamily: "Inter",
                                         fontSize: 16,
-                                        fontWeight: widget.appState.sorting %
-                                                        4 ==
-                                                    1 ||
-                                                widget.appState.sorting % 4 == 2
-                                            ? FontWeight.w600
-                                            : FontWeight.w300,
+                                        fontWeight:
+                                            sort % 4 == 1 || sort % 4 == 2
+                                                ? FontWeight.w600
+                                                : FontWeight.w300,
                                       ))),
                               onTapDown: (details) async {
                                 final newCategory = await categoriesMenu(
@@ -539,11 +536,9 @@ class _TaskListState extends State<TaskList> {
                                     color: Colors.white,
                                     fontFamily: "Inter",
                                     fontSize: 16,
-                                    fontWeight:
-                                        widget.appState.sorting % 4 == 3 ||
-                                                widget.appState.sorting % 4 == 0
-                                            ? FontWeight.w600
-                                            : FontWeight.w300,
+                                    fontWeight: sort % 4 == 3 || sort % 4 == 0
+                                        ? FontWeight.w600
+                                        : FontWeight.w300,
                                   )),
                             ),
                             const SizedBox(
@@ -636,6 +631,7 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   onSubmitted: (String text) {
                     context.read<Database>().addTask(taskText, taskDescription,
                         selectedCategoryId, selectedDate);
+                    appState._updateIndex(0);
                     Navigator.pop(context);
                   },
                   onChanged: (String text) {
@@ -740,6 +736,7 @@ class NewTaskFormContentState extends State<NewTaskFormContent> {
                   onPressed: () {
                     context.read<Database>().addTask(taskText, taskDescription,
                         selectedCategoryId, selectedDate);
+                    appState._updateIndex(0);
                     Navigator.pop(context);
                   },
                   label: constraints.maxWidth >= 365

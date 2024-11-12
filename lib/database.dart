@@ -12,7 +12,9 @@ class Database extends ChangeNotifier {
     isar = await Isar.open([TaskSchema, CategorySchema], directory: dir.path);
   }
 
-  final List<Task> tasksList = [];
+  int sorting = 0;
+  final List<Task> toDoList = [];
+  final List<Task> doneList = [];
   final List<Category> categories = [];
 
   // Tasks
@@ -27,13 +29,57 @@ class Database extends ChangeNotifier {
         date: date,
       ));
     });
-    fetchTasks();
+    fetchToDoList();
+    fetchDoneList();
   }
 
-  Future<void> fetchTasks() async {
-    List<Task> fetchedTasks = await isar.tasks.where().findAll();
-    tasksList.clear();
-    tasksList.addAll(fetchedTasks);
+  Future<void> fetchToDoList() async {
+    switch (sorting % 4) {
+      case 0:
+        List<Task> fetchedTasks = await isar.tasks
+            .filter()
+            .doneEqualTo(false)
+            .sortByCategory()
+            .findAll();
+        toDoList.clear();
+        toDoList.addAll(fetchedTasks);
+        notifyListeners();
+      case 1:
+        List<Task> fetchedTasks = await isar.tasks
+            .filter()
+            .doneEqualTo(false)
+            .sortByCategoryDesc()
+            .findAll();
+        toDoList.clear();
+        toDoList.addAll(fetchedTasks);
+        notifyListeners();
+      case 2:
+        List<Task> fetchedTasks =
+            await isar.tasks.filter().doneEqualTo(false).sortByDate().findAll();
+        toDoList.clear();
+        toDoList.addAll(fetchedTasks);
+        notifyListeners();
+      case 3:
+        List<Task> fetchedTasks = await isar.tasks
+            .filter()
+            .doneEqualTo(false)
+            .sortByDateDesc()
+            .findAll();
+        toDoList.clear();
+        toDoList.addAll(fetchedTasks);
+        notifyListeners();
+    }
+  }
+
+  void incrementSort() {
+    sorting++;
+  }
+
+  Future<void> fetchDoneList() async {
+    List<Task> fetchedTasks =
+        await isar.tasks.filter().doneEqualTo(true).findAll();
+    doneList.clear();
+    doneList.addAll(fetchedTasks);
     notifyListeners();
   }
 
@@ -42,7 +88,8 @@ class Database extends ChangeNotifier {
     if (existingTask != null) {
       existingTask.name = name;
       await isar.writeTxn(() => isar.tasks.put(existingTask));
-      await fetchTasks();
+      await fetchToDoList();
+      await fetchDoneList();
     }
   }
 
@@ -51,7 +98,8 @@ class Database extends ChangeNotifier {
     if (existingTask != null) {
       existingTask.description = description;
       await isar.writeTxn(() => isar.tasks.put(existingTask));
-      await fetchTasks();
+      await fetchToDoList();
+      await fetchDoneList();
     }
   }
 
@@ -60,7 +108,8 @@ class Database extends ChangeNotifier {
     if (existingTask != null) {
       existingTask.category = category;
       await isar.writeTxn(() => isar.tasks.put(existingTask));
-      await fetchTasks();
+      await fetchToDoList();
+      await fetchDoneList();
     }
   }
 
@@ -69,7 +118,8 @@ class Database extends ChangeNotifier {
     if (existingTask != null) {
       existingTask.date = date;
       await isar.writeTxn(() => isar.tasks.put(existingTask));
-      await fetchTasks();
+      await fetchToDoList();
+      await fetchDoneList();
     }
   }
 
@@ -78,13 +128,15 @@ class Database extends ChangeNotifier {
     if (existingTask != null) {
       existingTask.done = !existingTask.done;
       await isar.writeTxn(() => isar.tasks.put(existingTask));
-      await fetchTasks();
+      await fetchToDoList();
+      await fetchDoneList();
     }
   }
 
   Future<void> deleteTask(Id id) async {
     await isar.writeTxn(() => isar.tasks.delete(id));
-    await fetchTasks();
+    await fetchToDoList();
+    await fetchDoneList();
   }
 
   // Categories
@@ -101,5 +153,33 @@ class Database extends ChangeNotifier {
     categories.clear();
     categories.addAll(fetchedCategories);
     notifyListeners();
+  }
+
+  Future<void> deleteCategory(Id id) async {
+    await isar.writeTxn(() => isar.categories.delete(id));
+    await fetchCategories();
+  }
+
+  Future<void> deleteUnusedCategories() async {
+    print("delete Unused Categories");
+    fetchCategories();
+    fetchDoneList();
+    fetchToDoList();
+    for (var index = 0; index < categories.length; index++) {
+      var counter = 0;
+      for (var j = 0; j < toDoList.length; j++) {
+        if (toDoList[j].category == categories[index].id) {
+          counter++;
+        }
+      }
+      for (var k = 0; k < doneList.length; k++) {
+        if (toDoList[k].category == categories[index].id) {
+          counter++;
+        }
+      }
+      if (counter == 0) {
+        deleteCategory(categories[index].id);
+      }
+    }
   }
 }
